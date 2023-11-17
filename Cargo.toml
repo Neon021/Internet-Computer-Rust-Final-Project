@@ -2,3 +2,4 @@
 members = [
     "src/vote_backend",
 ]
+resolver = "2"
