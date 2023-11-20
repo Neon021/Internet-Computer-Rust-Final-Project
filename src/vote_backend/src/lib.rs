@@ -62,6 +62,7 @@ enum VoteTypes {
     Approve,
     Reject,
     Pass,
+    Undecided,
 }
 
 #[derive(CandidType, Deserialize)]
@@ -144,23 +145,49 @@ fn end_proposal(key: u64) -> Result<(), VoteError> {
 #[ic_cdk_macros::update]
 fn vote(key: u64, choice: VoteTypes) -> Result<(), VoteError> {
     PROPOSAL_MAP.with(|p| {
-        let mut proposal = p.borrow_mut().get(&key).unwrap();
-        let caller = ic_cdk::caller();
-        if proposal.voted.contains(&caller) {
-            return Err(VoteError::AlreadyVoted);
-        } else if !proposal.is_active {
-            return Err(VoteError::ProposalNotActive);
-        }
-        match choice {
-            VoteTypes::Approve => proposal.approve += 1,
-            VoteTypes::Reject => proposal.reject += 1,
-            VoteTypes::Pass => proposal.pass += 1,
-        }
-        proposal.voted.push(caller);
-        let res = p.borrow_mut().insert(key, proposal);
-        match res {
-            Some(_) => Ok(()),
-            None => Err(VoteError::VoteFailed),
+        if let Some(mut proposal) = p.borrow_mut().get(&key) {
+            let caller = ic_cdk::caller();
+            if proposal.voted.contains(&caller) {
+                return Err(VoteError::AlreadyVoted);
+            } else if !proposal.is_active {
+                return Err(VoteError::ProposalNotActive);
+            }
+            match choice {
+                VoteTypes::Approve => proposal.approve += 1,
+                VoteTypes::Reject => proposal.reject += 1,
+                VoteTypes::Pass => proposal.pass += 1,
+                _ => (),
+            }
+            proposal.voted.push(caller);
+            let res = p.borrow_mut().insert(key, proposal);
+            match res {
+                Some(_) => Ok(()),
+                None => Err(VoteError::VoteFailed),
+            }
+        } else {
+            Err(VoteError::NoProposal)
         }
     })
+}
+
+#[ic_cdk_macros::query]
+fn get_proposal_status(key: u64) -> Option<VoteTypes>{
+    if let Some(proposal) = get_proposal(key) {
+        let total_votes = proposal.approve + proposal.reject + proposal.pass;
+
+        if total_votes >= 5 {
+            let approve_percentage = (proposal.approve as f32 / total_votes as f32) * 100.0;
+
+            // Check if the approve percentage is greater than or equal to 50%
+            if approve_percentage >= 50.0 {
+                Some(VoteTypes::Approve)
+            } else {
+                Some(VoteTypes::Undecided)
+            }
+        } else {
+            Some(VoteTypes::Undecided)
+        }
+    } else {
+        None
+    }
 }
