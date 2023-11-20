@@ -43,6 +43,18 @@ type CreateProposal = record {
 
         };
 
+    type VoteTypes = variant {
+
+        Approve;
+
+        Reject;
+
+        Pass;
+
+        Undecided;
+
+    };
+
     type Choice = variant {
 
             Approve;
@@ -65,4 +77,6 @@ service : {
     "end_proposal": (nat64) -> (Result);
 
     "vote": (nat64, Choice) -> (Result);
+
+    "get_proposal_status": (nat64) -> (opt VoteTypes);
 }
